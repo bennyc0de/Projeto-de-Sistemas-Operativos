@@ -132,25 +132,7 @@ void process_file(const char *input_path, const char *output_path) {
         return;
     }
 
-    // Save the original stdout file descriptor
-    int original_stdout = dup(STDOUT_FILENO);
-    if (original_stdout == -1) {
-        perror("dup");
-        close(fd_in);
-        close(fd_out);
-        return;
-    }
-
-    // Redirect stdout to the output file descriptor
-    if (dup2(fd_out, STDOUT_FILENO) == -1) {
-        perror("dup2");
-        close(fd_in);
-        close(fd_out);
-        close(original_stdout);
-        return;
-    }
-
-    while (!EOC) {
+    while (1) {
         switch (get_next(fd_in)) {
             case CMD_WRITE: {
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -168,6 +150,7 @@ void process_file(const char *input_path, const char *output_path) {
             }
 
             case CMD_READ: {
+              printf("CMD_READ\n");
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 size_t num_pairs = parse_read_delete(fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
                 if (num_pairs == 0) {
@@ -182,6 +165,7 @@ void process_file(const char *input_path, const char *output_path) {
             }
 
             case CMD_DELETE: {
+              printf("CMD_DELETE\n");
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 size_t num_pairs = parse_read_delete(fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
                 if (num_pairs == 0) {
@@ -248,12 +232,6 @@ void process_file(const char *input_path, const char *output_path) {
 
     }
   }
-    // Restore the original stdout
-    if (dup2(original_stdout, STDOUT_FILENO) == -1) {
-        perror("dup2");
-    }
-    close(original_stdout);
-
     close(fd_in);
     close(fd_out);
 }
