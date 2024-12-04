@@ -38,6 +38,7 @@ int kvs_terminate() {
   }
 
   free_table(kvs_table);
+  kvs_table = NULL;
   return 0;
 }
 
@@ -132,49 +133,69 @@ void process_file(const char *input_path, const char *output_path) {
         return;
     }
 
+  int original_stdout = dup(STDOUT_FILENO);
+    if (original_stdout == -1) {
+        perror("dup");
+        close(fd_in);
+        close(fd_out);
+        return;
+    }
+
+    // Redirect stdout to the output file descriptor
+    if (dup2(fd_out, STDOUT_FILENO) == -1) {
+        perror("dup2");
+        close(fd_in);
+        close(fd_out);
+        close(original_stdout);
+        return;
+    }
+
     while (1) {
-        switch (get_next(fd_in)) {
+        int command = get_next(fd_in);
+        if (command == EOC) {
+            break;
+        }
+
+        switch (command) {
             case CMD_WRITE: {
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 size_t num_pairs = parse_write(fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
                 if (num_pairs == 0) {
-                    printf("Invalid command. See HELP for usage\n");
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                     continue;
                 }
 
                 if (kvs_write(num_pairs, keys, values)) {
-                    printf("Failed to write pair\n");
+                    write(STDERR_FILENO, "Failed to write pair\n", 21);
                 }
                 break;
             }
 
             case CMD_READ: {
-              printf("CMD_READ\n");
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 size_t num_pairs = parse_read_delete(fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
                 if (num_pairs == 0) {
-                    printf("Invalid command. See HELP for usage\n");
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                     continue;
                 }
 
                 if (kvs_read(num_pairs, keys)) {
-                    printf("Failed to read pair\n");
+                    write(STDERR_FILENO, "Failed to read pair\n", 20);
                 }
                 break;
             }
 
             case CMD_DELETE: {
-              printf("CMD_DELETE\n");
                 char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
                 size_t num_pairs = parse_read_delete(fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
                 if (num_pairs == 0) {
-                    printf("Invalid command. See HELP for usage\n");
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                     continue;
                 }
 
                 if (kvs_delete(num_pairs, keys)) {
-                    printf("Failed to delete pair\n");
+                    write(STDERR_FILENO, "Failed to delete pair\n", 22);
                 }
                 break;
             }
@@ -186,7 +207,7 @@ void process_file(const char *input_path, const char *output_path) {
             case CMD_WAIT: {
                 unsigned int delay;
                 if (parse_wait(fd_in, &delay, NULL) == -1) {
-                    printf("Invalid command. See HELP for usage\n");
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                     continue;
                 }
 
@@ -198,12 +219,12 @@ void process_file(const char *input_path, const char *output_path) {
             }
             case CMD_BACKUP:
                 if (kvs_backup()) {
-                    printf("Failed to perform backup.\n");
+                    write(STDERR_FILENO, "Failed to perform backup.\n", 26);
                 }
                 break;
 
             case CMD_INVALID:
-                printf("Invalid command. See HELP for usage\n");
+                write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                 break;
 
             case CMD_HELP:
@@ -227,11 +248,17 @@ void process_file(const char *input_path, const char *output_path) {
                 break;
 
             default:
-                printf("Invalid command. See HELP for usage\n");
+                write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                 break;
 
     }
   }
+  // Restore the original stdout
+    if (dup2(original_stdout, STDOUT_FILENO) == -1) {
+        perror("dup2");
+    }
+    close(original_stdout);
+
     close(fd_in);
     close(fd_out);
 }

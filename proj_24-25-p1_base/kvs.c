@@ -106,5 +106,4 @@ void free_table(HashTable *ht) {
             free(temp);
         }
     }
-    free(ht);
 }
