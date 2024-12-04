@@ -10,23 +10,35 @@
 
 int main(int argc, char *argv[])
 {
+  if(argc != 2) {
+    fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
+    return -1;
+  }
   DIR *dir;
   int fd_in;
 
   if (kvs_init())
   {
-    fprintf(stderr, "Failed to initialize KVS\n");
+    perror("Failed to initialize KVS\n");
     return 1;
+
   }
   dir = opendir(argv[1]);
   if (!dir)
   {
     perror("Failed to open directory");
-    return;
+    kvs_terminate();
+    return 1;
   }
   while (1)
   {
-    fd_in = get_next_file(dir, argv[1]);
+    int* list = get_next_file(dir, argv[1]);
+    fd_in = list[0];
+    printf("File descriptor: %d\n", fd_in); 
+    if (fd_in < 0){
+      free(list);
+      break;
+    } 
     while (1)
     {
       char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -43,13 +55,13 @@ int main(int argc, char *argv[])
         num_pairs = parse_write(fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
-          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
 
         if (kvs_write(num_pairs, keys, values))
         {
-          fprintf(stderr, "Failed to write pair\n");
+          write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
 
         break;
@@ -59,13 +71,13 @@ int main(int argc, char *argv[])
 
         if (num_pairs == 0)
         {
-          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
 
         if (kvs_read(num_pairs, keys))
         {
-          fprintf(stderr, "Failed to read pair\n");
+          write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
         break;
 
@@ -74,13 +86,13 @@ int main(int argc, char *argv[])
 
         if (num_pairs == 0)
         {
-          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
 
         if (kvs_delete(num_pairs, keys))
         {
-          fprintf(stderr, "Failed to delete pair\n");
+          write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
         break;
 
@@ -92,7 +104,7 @@ int main(int argc, char *argv[])
       case CMD_WAIT:
         if (parse_wait(fd_in, &delay, NULL) == -1)
         {
-          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
 
@@ -107,12 +119,12 @@ int main(int argc, char *argv[])
 
         if (kvs_backup())
         {
-          fprintf(stderr, "Failed to perform backup.\n");
+          write(STDERR_FILENO, "Failed to perform backup.\n", 26);
         }
         break;
 
       case CMD_INVALID:
-        fprintf(stderr, "Invalid command. See HELP for usage\n");
+        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
         break;
 
       case CMD_HELP:
@@ -133,8 +145,10 @@ int main(int argc, char *argv[])
 
       case EOC:
         kvs_terminate();
-        return 0;
+        break;
       }
     }
+  free(list);
+  break;
   }
 }

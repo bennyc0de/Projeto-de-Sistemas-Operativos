@@ -121,7 +121,6 @@ int main() {
             "  SHOW\n"
             "  WAIT <delay_ms>\n"
             "  BACKUP\n" // Not implemented
-            "  OPENDIR <directory_path>\n"
             "  QUIT\n"
             "  HELP\n"
         );

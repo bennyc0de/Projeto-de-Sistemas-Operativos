@@ -178,15 +178,7 @@ enum Command get_next(int fd)
       cleanup(fd);
       return CMD_INVALID;
     }
-
-  case 'O':
-    if (read(fd, buf + 1, 6) != 6 || strncmp(buf, "OPENDIR", 7) != 0)
-    {
-      cleanup(fd);
-      return CMD_INVALID;
-    }
-    return CMD_OPENDIR;
-
+    
     return CMD_HELP;
 
   case '#':

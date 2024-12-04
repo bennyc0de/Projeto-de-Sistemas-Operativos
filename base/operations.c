@@ -3,7 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <dirent.h>
-
+#include <fcntl.h>
 #include "kvs.h"
 #include "constants.h"
 
@@ -139,58 +139,40 @@ void kvs_wait(unsigned int delay_ms)
   nanosleep(&delay, NULL);
 }
 
-void kvs_process_directory(const char *directory_path)
-{
-  DIR *dir = opendir(directory_path);
-  if (!dir)
-  {
-    perror("Failed to open directory");
-    return;
-  }
+int* get_list_of_integers(size_t* size) {
+    // Define the size of the list
+    *size = 2;
 
-  struct dirent *entry;
-  // get next file in dir
-  while ((entry = readdir(dir)) != NULL)
-  {
-
-    // todo : check if i can use d_namlen
-    if (strcmp(entry->d_name + entry->d_namlen - 4, ".job") == 0)
-    {
-      char input_path[MAX_JOB_FILE_NAME_SIZE];
-      char output_path[MAX_JOB_FILE_NAME_SIZE];
-
-      int input_len = strlen(directory_path) + 1 + entry->d_namlen;
-
-      if (input_len >= MAX_JOB_FILE_NAME_SIZE)
-      {
-        fprintf(stderr, "Path too long: %s/%s\n", directory_path, entry->d_name);
-        continue;
-      }
-
-      strcpy(input_path, directory_path); // dir_pathname/
-      strcat(input_path, entry->d_name);  // dir_pattname/file_name.out
-
-      strcpy(input_len - 4, ".out");
-
-      process_file(input_path, output_path);
+    // Allocate memory for the list
+    int* list = (int*)malloc(*size * sizeof(int));
+    if (list == NULL) {
+        perror("Failed to allocate memory");
+        return NULL;
     }
-  }
 
-  closedir(dir);
+    // Initialize the list with some values
+    for (size_t i = 0; i < *size; i++) {
+        list[i] = -1 * (int)i + 1;
+    }
+
+    return list;
 }
 
-int get_next_file(const DIR *dir, const char *directory_path)
+int* get_next_file(DIR *dir, char *directory_path)
 {
+  size_t size;
+  int* list = get_list_of_integers(&size);
+
   struct dirent *entry;
   if ((entry = readdir(dir)) != NULL)
   {
-    // todo : check if i can use d_namlen
-    if (strcmp(entry->d_name + entry->d_namlen - 4, ".job") == 0)
+    size_t name_len = strlen(entry->d_name);
+    if (strcmp(entry->d_name + name_len - 4, ".job") == 0)
     {
       char input_path[MAX_JOB_FILE_NAME_SIZE];
       char output_path[MAX_JOB_FILE_NAME_SIZE];
 
-      int input_len = strlen(directory_path) + 1 + entry->d_namlen;
+      size_t input_len = strlen(directory_path) + name_len;
 
       if (input_len >= MAX_JOB_FILE_NAME_SIZE)
       {
@@ -198,13 +180,20 @@ int get_next_file(const DIR *dir, const char *directory_path)
       }
 
       strcpy(input_path, directory_path); // dir_pathname/
-      strcat(input_path, entry->d_name);  // dir_pattname/file_name.out
+      strcat(input_path, entry->d_name);  // dir_pattname/file_name.job
+      strcpy(output_path, input_path);
+      strcpy(output_path + input_len - 4, ".out");
 
-      strcpy(input_len - 4, ".out");
+      int fd_in = open(input_path, O_RDONLY);
+      int fd_out = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+      list[0] = fd_in;
+      list[1] = fd_out;
     }
+    return list;
   }
   else
   {
-    return NULL;
+    return list;
   }
 }
