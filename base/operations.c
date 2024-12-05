@@ -62,34 +62,44 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
   return 0;
 }
 
-int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE])
+int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 {
+  size_t len_key, len_res;
   if (kvs_table == NULL)
   {
     fprintf(stderr, "KVS state must be initialized\n");
     return 1;
   }
 
-  printf("[");
+  write(fd_out, "[", 1);
   for (size_t i = 0; i < num_pairs; i++)
   {
     char *result = read_pair(kvs_table, keys[i]);
+    len_key = strlen(keys[i]);
     if (result == NULL)
     {
-      printf("(%s,KVSERROR)", keys[i]);
+      write(fd_out, "(", 1);
+      write(fd_out, keys[i], len_key);
+      write(fd_out, ",KVSERROR)", 10);
     }
     else
     {
-      printf("(%s,%s)", keys[i], result);
+      len_res = strlen(result);
+      write(fd_out, "(", 1);
+      write(fd_out, keys[i], len_key);
+      write(fd_out, ",", 1);
+      write(fd_out, result, len_res);
+      write(fd_out, ")", 1);
     }
     free(result);
   }
-  printf("]\n");
+  write(fd_out, "]\n", 2);
   return 0;
 }
 
-int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE])
+int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 {
+  size_t len_key;
   if (kvs_table == NULL)
   {
     fprintf(stderr, "KVS state must be initialized\n");
@@ -103,28 +113,38 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE])
     {
       if (!aux)
       {
-        printf("[");
+        write(fd_out, "[", 1);
         aux = 1;
       }
-      printf("(%s,KVSMISSING)", keys[i]);
+      len_key = strlen(keys[i]);
+      write(fd_out, "(", 1);
+      write(fd_out, keys[i], len_key);
+      write(fd_out, ",KVSMISSING)", 11);
     }
   }
   if (aux)
   {
-    printf("]\n");
+    write(fd_out, "]\n", 2);
   }
 
   return 0;
 }
 
-void kvs_show()
+void kvs_show(int fd_out)
 {
+  size_t len_key, len_value;
   for (int i = 0; i < TABLE_SIZE; i++)
   {
     KeyNode *keyNode = kvs_table->table[i];
     while (keyNode != NULL)
     {
-      printf("(%s, %s)\n", keyNode->key, keyNode->value);
+      len_key = strlen(keyNode->key);
+      len_value = strlen(keyNode->value);
+      write(fd_out, "(", 1);
+      write(fd_out, keyNode->key, len_key);
+      write(fd_out, ",", 1);
+      write(fd_out, keyNode->value, len_value);
+      write(fd_out, ")\n", 2);
       keyNode = keyNode->next; // Move to the next node
     }
   }
