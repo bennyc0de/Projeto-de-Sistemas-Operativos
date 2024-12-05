@@ -35,22 +35,12 @@ int main(int argc, char *argv[])
 
   while (1)
   {
-<<<<<<< HEAD
     struct files files = get_next_file(dir, argv[1]);
     fd_in = files.fd_in;
     //fd_out = list[1];
     printf("File descriptor: %d\n", fd_in); 
     if (fd_in < -1){
-      continue;
-=======
-    int *list = get_next_file(dir, argv[1]);
-    fd_in = list[0];
-    fd_out = list[1];
-    if (fd_in < 0 || fd_out < 0)
-    {
-      free(list);
-      break;
->>>>>>> temp
+     continue;
     }
     while (1)
     {
@@ -139,22 +129,12 @@ int main(int argc, char *argv[])
         write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
         break;
 
-<<<<<<< HEAD
       case CMD_QUIT: 
           kvs_terminate();
           printf("Exiting program.\n");
           close(fd_in);
           closedir(dir);
           return 0;
-=======
-      case CMD_QUIT:
-        kvs_terminate();
-        printf("Exiting program.\n");
-        close(fd_in);
-        free(list);
-        closedir(dir);
-        return 0;
->>>>>>> temp
 
       case CMD_HELP:
         printf(
