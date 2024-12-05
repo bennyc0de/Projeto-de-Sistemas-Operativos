@@ -10,18 +10,19 @@
 
 int main(int argc, char *argv[])
 {
-  if(argc != 2) {
+  DIR *dir;
+  int fd_in, fd_out;
+  // tem que ter 2 args
+  if (argc != 2)
+  {
     fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
     return -1;
   }
-  DIR *dir;
-  int fd_in;
 
   if (kvs_init())
   {
     perror("Failed to initialize KVS\n");
     return 1;
-
   }
   dir = opendir(argv[1]);
   if (!dir)
@@ -31,16 +32,16 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  
   while (1)
   {
-    int* list = get_next_file(dir, argv[1]);
+    int *list = get_next_file(dir, argv[1]);
     fd_in = list[0];
-    printf("File descriptor: %d\n", fd_in); 
-    if (fd_in < 0){
+    fd_out = list[1];
+    if (fd_in < 0 || fd_out < 0)
+    {
       free(list);
       break;
-    } 
+    }
     while (1)
     {
       char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -48,7 +49,6 @@ int main(int argc, char *argv[])
       unsigned int delay;
       size_t num_pairs;
 
-      printf("> ");
       fflush(stdout);
 
       switch (get_next(fd_in))
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
           continue;
         }
 
-        if (kvs_read(num_pairs, keys))
+        if (kvs_read(fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 
       case CMD_SHOW:
 
-        kvs_show();
+        kvs_show(fd_out);
         break;
 
       case CMD_WAIT:
@@ -129,13 +129,13 @@ int main(int argc, char *argv[])
         write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
         break;
 
-      case CMD_QUIT: 
-          kvs_terminate();
-          printf("Exiting program.\n");
-          close(fd_in);
-          free(list);
-          closedir(dir);
-          return 0;
+      case CMD_QUIT:
+        kvs_terminate();
+        printf("Exiting program.\n");
+        close(fd_in);
+        free(list);
+        closedir(dir);
+        return 0;
 
       case CMD_HELP:
         printf(
@@ -160,7 +160,6 @@ int main(int argc, char *argv[])
         break;
       }
     }
-    
   }
   closedir(dir);
   kvs_terminate();

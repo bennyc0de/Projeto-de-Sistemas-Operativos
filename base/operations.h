@@ -25,7 +25,7 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
 /// @param keys Array of keys' strings.
 /// @param fd File descriptor to write the (successful) output.
 /// @return 0 if the key reading, 1 otherwise.
-int kvs_read(size_t num_pairs, char keys[][MAX_STRING_SIZE]);
+int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE]);
 
 /// Deletes key value pairs from the KVS.
 /// @param num_pairs Number of pairs to read.
@@ -35,7 +35,7 @@ int kvs_delete(size_t num_pairs, char keys[][MAX_STRING_SIZE]);
 
 /// Writes the state of the KVS.
 /// @param fd File descriptor to write the output.
-void kvs_show();
+void kvs_show(int fd_out);
 
 /// Creates a backup of the KVS state and stores it in the correspondent
 /// backup file
@@ -49,10 +49,9 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-
 /// Gets a list of integers.
-int* get_list_of_integers(size_t* size);
+int *get_list_of_integers(size_t *size);
 
 /// Gets the next file in the directory.
-int* get_next_file(DIR *dir, char *directory_path);
-#endif  // KVS_OPERATIONS_H
+int *get_next_file(DIR *dir, char *directory_path);
+#endif // KVS_OPERATIONS_H
