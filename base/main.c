@@ -7,6 +7,7 @@
 #include "parser.h"
 #include "operations.h"
 #include <dirent.h>
+#include "files.h"
 
 int main(int argc, char *argv[])
 {
@@ -31,16 +32,15 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  
   while (1)
   {
-    int* list = get_next_file(dir, argv[1]);
-    fd_in = list[0];
+    struct files files = get_next_file(dir, argv[1]);
+    fd_in = files.fd_in;
+    //fd_out = list[1];
     printf("File descriptor: %d\n", fd_in); 
-    if (fd_in < 0){
-      free(list);
-      break;
-    } 
+    if (fd_in < -1){
+      continue;
+    }
     while (1)
     {
       char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
           kvs_terminate();
           printf("Exiting program.\n");
           close(fd_in);
-          free(list);
           closedir(dir);
           return 0;
 
@@ -156,7 +155,6 @@ int main(int argc, char *argv[])
       case EOC:
         kvs_terminate();
         close(fd_in);
-        free(list);
         break;
       }
     }

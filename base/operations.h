@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "constants.h"
 #include <dirent.h>
+#include "files.h"
 
 /// Initializes the KVS state.
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
@@ -49,10 +50,6 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-
-/// Gets a list of integers.
-int* get_list_of_integers(size_t* size);
-
 /// Gets the next file in the directory.
-int* get_next_file(DIR *dir, char *directory_path);
+struct files get_next_file(DIR *dir, char *directory_path);
 #endif  // KVS_OPERATIONS_H

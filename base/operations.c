@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include "kvs.h"
 #include "constants.h"
+#include "files.h"
+#include <unistd.h>
 
 static struct HashTable *kvs_table = NULL;
 
@@ -139,61 +141,39 @@ void kvs_wait(unsigned int delay_ms)
   nanosleep(&delay, NULL);
 }
 
-int* get_list_of_integers(size_t* size) {
-    // Define the size of the list
-    *size = 2;
+struct files get_next_file(DIR *dir, char *directory_path) {
+    struct files files; // Initialize with -1
 
-    // Allocate memory for the list
-    int* list = (int*)malloc(*size * sizeof(int));
-    if (list == NULL) {
-        perror("Failed to allocate memory");
-        return NULL;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        size_t name_len = strlen(entry->d_name);
+        if (name_len < 4 || strcmp(entry->d_name + name_len - 4, ".job") != 0) {
+            continue; // Skip non-.job files
+        }
+
+        size_t input_len = strlen(directory_path) + name_len;
+
+        strcpy(files.input_path, directory_path); // dir_pathname/
+        strcat(files.input_path, entry->d_name);  // dir_pathname/file_name.job
+        strcpy(files.output_path, files.input_path);
+        strcpy(files.output_path + input_len - 4, ".out");
+
+        files.fd_in = open(files.input_path, O_RDONLY);
+        if (files.fd_in < 0) {
+            perror("Failed to open input file");
+            continue;
+        }
+
+        files.fd_out = open(files.output_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (files.fd_out < 0) {
+            perror("Failed to open output file");
+            close(files.fd_in);
+            files.fd_in = -1;
+            continue;
+        }
+
+        return files; // Return the first valid .job file
     }
-
-    // Initialize the list with some values
-    for (size_t i = 0; i < *size; i++) {
-        list[i] = -1 * (int)i + 1;
-    }
-
-    return list;
-}
-
-int* get_next_file(DIR *dir, char *directory_path)
-{
-  size_t size;
-  int* list = get_list_of_integers(&size);
-
-  struct dirent *entry;
-  if ((entry = readdir(dir)) != NULL)
-  {
-    size_t name_len = strlen(entry->d_name);
-    if (strcmp(entry->d_name + name_len - 4, ".job") == 0)
-    {
-      char input_path[MAX_JOB_FILE_NAME_SIZE];
-      char output_path[MAX_JOB_FILE_NAME_SIZE];
-
-      size_t input_len = strlen(directory_path) + name_len;
-
-      if (input_len >= MAX_JOB_FILE_NAME_SIZE)
-      {
-        fprintf(stderr, "Path too long: %s/%s\n", directory_path, entry->d_name);
-      }
-
-      strcpy(input_path, directory_path); // dir_pathname/
-      strcat(input_path, entry->d_name);  // dir_pattname/file_name.job
-      strcpy(output_path, input_path);
-      strcpy(output_path + input_len - 4, ".out");
-
-      int fd_in = open(input_path, O_RDONLY);
-      int fd_out = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-      list[0] = fd_in;
-      list[1] = fd_out;
-    }
-    return list;
-  }
-  else
-  {
-    return list;
-  }
+    printf("Invalid files%d\n", files.fd_in);
+    return files;
 }
