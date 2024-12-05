@@ -181,6 +181,14 @@ enum Command get_next(int fd)
     
     return CMD_HELP;
 
+  case 'Q':
+    if (read(fd, buf + 1, 3) != 3 || strncmp(buf, "QUIT", 4) != 0) 
+    {
+      cleanup(fd);
+      return CMD_INVALID;
+    }
+    return CMD_QUIT;
+
   case '#':
     cleanup(fd);
     return CMD_EMPTY;

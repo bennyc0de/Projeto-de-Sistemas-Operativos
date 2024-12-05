@@ -15,6 +15,7 @@ enum Command
   CMD_HELP,
   CMD_EMPTY,
   CMD_INVALID,
+  CMD_QUIT,
   EOC // End of commands
 };
 

@@ -30,6 +30,8 @@ int main(int argc, char *argv[])
     kvs_terminate();
     return 1;
   }
+
+  
   while (1)
   {
     int* list = get_next_file(dir, argv[1]);
@@ -127,6 +129,14 @@ int main(int argc, char *argv[])
         write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
         break;
 
+      case CMD_QUIT: 
+          kvs_terminate();
+          printf("Exiting program.\n");
+          close(fd_in);
+          free(list);
+          closedir(dir);
+          return 0;
+
       case CMD_HELP:
         printf(
             "Available commands:\n"
@@ -145,10 +155,14 @@ int main(int argc, char *argv[])
 
       case EOC:
         kvs_terminate();
+        close(fd_in);
+        free(list);
         break;
       }
     }
-  free(list);
-  break;
+    
   }
+  closedir(dir);
+  kvs_terminate();
+  return 0;
 }
