@@ -162,7 +162,7 @@ void kvs_wait(unsigned int delay_ms)
 }
 
 struct files get_next_file(DIR *dir, char *directory_path) {
-    struct files files; // Initialize with -1
+    struct files files;
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -194,6 +194,6 @@ struct files get_next_file(DIR *dir, char *directory_path) {
 
         return files; // Return the first valid .job file
     }
-    printf("Invalid files%d\n", files.fd_in);
+    files.fd_in = -100;
     return files;
 }

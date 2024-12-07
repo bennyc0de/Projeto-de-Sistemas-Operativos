@@ -37,12 +37,13 @@ int main(int argc, char *argv[])
   {
     struct files files = get_next_file(dir, argv[1]);
     fd_in = files.fd_in;
-    //fd_out = list[1];
+    fd_out = files.fd_out;
     printf("File descriptor: %d\n", fd_in); 
-    if (fd_in < -1){
-     continue;
+    if (fd_in < 0){
+      break;
     }
-    while (1)
+    int done = 0;
+    while (!done)
     {
       char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
       char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -92,7 +93,7 @@ int main(int argc, char *argv[])
           continue;
         }
 
-        if (kvs_delete(num_pairs, keys))
+        if (kvs_delete(fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
@@ -112,7 +113,7 @@ int main(int argc, char *argv[])
 
         if (delay > 0)
         {
-          printf("Waiting...\n");
+          write(fd_out, "Waiting...\n", 11);
           kvs_wait(delay);
         }
         break;
@@ -153,8 +154,9 @@ int main(int argc, char *argv[])
         break;
 
       case EOC:
-        kvs_terminate();
         close(fd_in);
+        close(fd_out);
+        done = 1;
         break;
       }
     }
