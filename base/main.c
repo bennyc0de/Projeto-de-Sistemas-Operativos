@@ -122,9 +122,12 @@ int main(int argc, char *argv[])
 
       case CMD_BACKUP:
         files.num_backups++;
-        if (kvs_backup(files, lim_backups))
+        if (kvs_backup(files, lim_backups) == 1)
         {
           write(STDERR_FILENO, "Failed to perform backup.\n", 26);
+        }
+        if (lim_backups > 0) {
+          lim_backups--;
         }
         break;
 
@@ -147,7 +150,7 @@ int main(int argc, char *argv[])
             "  DELETE [key,key2,...]\n"
             "  SHOW\n"
             "  WAIT <delay_ms>\n"
-            "  BACKUP\n" // Not implemented
+            "  BACKUP\n"
             "  HELP\n");
 
         break;
