@@ -8,6 +8,8 @@
 #include "constants.h"
 #include "files.h"
 #include <unistd.h>
+#include <sys/wait.h>
+
 
 static struct HashTable *kvs_table = NULL;
 
@@ -150,8 +152,47 @@ void kvs_show(int fd_out)
   }
 }
 
-int kvs_backup()
+int kvs_backup(struct files f, int lim_backups)
 {
+  size_t len = strlen(f.input_path);
+  strcpy(f.backup_path, f.input_path);
+  snprintf(f.backup_path, MAX_JOB_FILE_NAME_SIZE, "%.*s-%d.bck", (int)(len - 4), 
+          f.input_path, f.num_backups);
+
+  if (lim_backups == 0) {
+    int status;
+    pid_t pid = wait(&status);
+    //pode ser cagativo
+    if (pid == -1) {
+      perror("wait deu merda");
+      return 1;} 
+    else {
+      if (WIFEXITED(status)) {
+        if (WEXITSTATUS(status) != 0) {
+          fprintf(stderr, "Child process exited with status %d\n", WEXITSTATUS(status));}
+    } else {
+        fprintf(stderr, "Child process did not exit successfully\n");
+      }
+    }
+  }
+  if(lim_backups != 0) {
+    lim_backups--;
+  }
+  pid_t pid = fork();
+    if (pid < 0) {
+        perror("Failed to fork");
+        return 1;
+    } else if (pid == 0) {
+        int fd_backup = open(f.backup_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd_backup < 0) {
+            perror("Failed to open backup file");
+            _exit(1);
+        }
+
+        kvs_show(fd_backup);
+        close(fd_backup);
+        _exit(0);
+    }
   return 0;
 }
 
@@ -188,12 +229,12 @@ struct files get_next_file(DIR *dir, char *directory_path) {
         if (files.fd_out < 0) {
             perror("Failed to open output file");
             close(files.fd_in);
-            files.fd_in = -1;
+            files.fd_in = NO_FILES_LEFT;
             continue;
         }
 
         return files; // Return the first valid .job file
     }
-    files.fd_in = -100;
+    files.fd_in = NO_FILES_LEFT;
     return files;
 }

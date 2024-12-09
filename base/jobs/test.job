@@ -21,3 +21,5 @@ WAIT 1000
 
 # Impressão de toda a tabela
 SHOW
+
+BACKUP

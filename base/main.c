@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
 {
   DIR *dir;
   int fd_in, fd_out;
-  // tem que ter 2 args
-  if (argc != 2)
+  // tem que ter 2 ou 3 args
+  if (argc < 3)
   {
     fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
     return -1;
@@ -33,12 +33,14 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  int lim_backups = atoi(argv[2]);
   while (1)
   {
     struct files files = get_next_file(dir, argv[1]);
+    files.num_backups = 0;
     fd_in = files.fd_in;
     fd_out = files.fd_out;
-    printf("File descriptor: %d\n", fd_in); 
+    
     if (fd_in < 0){
       break;
     }
@@ -119,8 +121,8 @@ int main(int argc, char *argv[])
         break;
 
       case CMD_BACKUP:
-
-        if (kvs_backup())
+        files.num_backups++;
+        if (kvs_backup(files, lim_backups))
         {
           write(STDERR_FILENO, "Failed to perform backup.\n", 26);
         }
