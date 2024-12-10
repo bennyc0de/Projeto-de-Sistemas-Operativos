@@ -36,11 +36,14 @@ int main(int argc, char *argv[])
   int max_threads = atoi(argv[3]);
   int lim_backups = atoi(argv[2]);
 
+  pthread_mutex_t trinco;
+  pthread_mutex_init(&trinco, NULL);
   pthread_t tid[max_threads];
   thread_args_t args = {
         .dir = dir,
         .lim_backups = lim_backups,
         .max_threads = max_threads,
+        .trinco = trinco
   };
   strncpy(args.directory_path, argv[1], MAX_JOB_FILE_NAME_SIZE);
   for (int i = 0; i < max_threads; i++) {

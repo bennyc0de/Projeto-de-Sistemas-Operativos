@@ -239,15 +239,14 @@ struct files get_next_file(DIR *dir, char *directory_path) {
 }
 
 void* process_files(void *arg) {
-    int temp;
+    //int temp;
     thread_args_t *args = (thread_args_t *)arg;
     DIR *dir = args->dir;
     char *directory_path = args->directory_path;
     int lim_backups = args->lim_backups;
+    pthread_mutex_t trinco = args->trinco;
 
     while (1) {
-      pthread_mutex_t trinco;
-      pthread_mutex_init(&trinco, NULL);
       pthread_mutex_lock(&trinco);
         struct files files = get_next_file(dir, directory_path);
         files.num_backups = 0;
@@ -255,8 +254,6 @@ void* process_files(void *arg) {
         if (files.fd_in < 0) {
             break;
         }
-
-        fprintf(STDERR_FILENO, "Thread %ld processing file: %s\n", pthread_self(), files.input_path);
 
         int done = 0;
         while (!done) {
@@ -358,9 +355,6 @@ void* process_files(void *arg) {
                     break;
             }
         }
-        // Simulate some work with sleep
-        fprintf(STDERR_FILENO, "Thread %ld finished processing file: %s\n", pthread_self(), files.input_path);
-        sleep(1); // Simulate work
         }
 
     return NULL;

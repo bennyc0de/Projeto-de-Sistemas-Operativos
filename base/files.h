@@ -16,6 +16,7 @@ typedef struct {
     char directory_path[MAX_JOB_FILE_NAME_SIZE];
     int lim_backups;
     int max_threads;
+    pthread_mutex_t trinco;
 } thread_args_t;
 
 #endif  // FILES_H
