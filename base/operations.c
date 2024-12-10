@@ -4,9 +4,11 @@
 #include <time.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include "kvs.h"
 #include "constants.h"
 #include "files.h"
+#include "parser.h"
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -234,4 +236,127 @@ struct files get_next_file(DIR *dir, char *directory_path) {
     }
     files.fd_in = NO_FILES_LEFT;
     return files;
+}
+
+void* process_files(void *arg) {
+    thread_args_t *args = (thread_args_t *)arg;
+    DIR *dir = args->dir;
+    char *directory_path = args->directory_path;
+    int lim_backups = args->lim_backups;
+
+    while (1) {
+      pthread_mutex_t trinco;
+      pthread_mutex_init(&trinco, NULL);
+      pthread_mutex_lock(&trinco);
+        struct files files = get_next_file(dir, directory_path);
+        files.num_backups = 0;
+        files.fd_in;
+        files.fd_out;
+        pthread_mutex_unlock(&trinco);
+        if (files.fd_in < 0) {
+            break;
+        }
+
+        int done = 0;
+        while (!done) {
+            char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
+            char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
+            unsigned int delay;
+            size_t num_pairs;
+
+            int command = get_next(files.fd_in);
+            if (command == CMD_EMPTY || command == EOC) {
+                if (command == EOC) {
+                    close(files.fd_in);
+                    close(files.fd_out);
+                }
+                break;
+            }
+
+            switch (command) {
+                case CMD_WRITE:
+                    num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+                    if (num_pairs == 0) {
+                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                        continue;
+                    }
+
+                    if (kvs_write(num_pairs, keys, values)) {
+                        write(STDERR_FILENO, "Failed to write pair\n", 21);
+                    }
+                    break;
+
+                case CMD_READ:
+                    num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+                    if (num_pairs == 0) {
+                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                        continue;
+                    }
+
+                    if (kvs_read(files.fd_out, num_pairs, keys)) {
+                        write(STDERR_FILENO, "Failed to read pair\n", 20);
+                    }
+                    break;
+
+                case CMD_DELETE:
+                    num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+                    if (num_pairs == 0) {
+                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                        continue;
+                    }
+
+                    if (kvs_delete(files.fd_out, num_pairs, keys)) {
+                        write(STDERR_FILENO, "Failed to delete pair\n", 22);
+                    }
+                    break;
+
+                case CMD_SHOW:
+                    kvs_show(files.fd_out);
+                    break;
+
+                case CMD_WAIT:
+                    if (parse_wait(files.fd_in, &delay, NULL) == -1) {
+                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                        continue;
+                    }
+
+                    if (delay > 0) {
+                        printf("Waiting...\n");
+                        kvs_wait(delay);
+                    }
+                    break;
+
+                case CMD_BACKUP:
+                    files.num_backups++;
+                    if (kvs_backup(files, lim_backups) == 1) {
+                        write(STDERR_FILENO, "Failed to perform backup.\n", 26);
+                        files.num_backups--;
+                    }
+                    break;
+
+                case CMD_INVALID:
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                    break;
+
+                case CMD_HELP:
+                    printf(
+                        "Available commands:\n"
+                        "  WRITE [(key,value)(key2,value2),...]\n"
+                        "  READ [key,key2,...]\n"
+                        "  DELETE [key,key2,...]\n"
+                        "  SHOW\n"
+                        "  WAIT <delay_ms>\n"
+                        "  BACKUP\n"
+                        "  HELP\n"
+                    );
+                    break;
+
+                default:
+                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+                    break;
+            }
+        }
+        }
+
+    return NULL;
 }

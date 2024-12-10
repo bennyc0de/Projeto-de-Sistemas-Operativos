@@ -11,4 +11,11 @@ struct files {
     char backup_path[MAX_JOB_FILE_NAME_SIZE];
 };
 
+typedef struct {
+    DIR *dir;
+    char directory_path[MAX_JOB_FILE_NAME_SIZE];
+    int lim_backups;
+    int max_threads;
+} thread_args_t;
+
 #endif  // FILES_H
