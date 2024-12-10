@@ -5,8 +5,9 @@
 #include "constants.h"
 #include <dirent.h>
 #include "files.h"
+#include "kvs.h"
 
-void* process_files(void *arg);
+void *process_files(void *arg);
 
 /// Initializes the KVS state.
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
@@ -54,4 +55,7 @@ void kvs_wait(unsigned int delay_ms);
 
 /// Gets the next file in the directory.
 struct files get_next_file(DIR *dir, char *directory_path);
-#endif  // KVS_OPERATIONS_H
+
+int control_lock(HashTable *ht, const char *key, int is_locking, int is_reading);
+
+#endif // KVS_OPERATIONS_H

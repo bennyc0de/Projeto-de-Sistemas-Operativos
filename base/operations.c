@@ -12,7 +12,6 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-
 static struct HashTable *kvs_table = NULL;
 
 /// Calculates a timespec from a delay in milliseconds.
@@ -21,6 +20,54 @@ static struct HashTable *kvs_table = NULL;
 static struct timespec delay_to_timespec(unsigned int delay_ms)
 {
   return (struct timespec){delay_ms / 1000, (delay_ms % 1000) * 1000000};
+}
+
+int control_lock(HashTable *ht, const char *key, int is_locking, int is_reading)
+{
+  int index = hash(key);
+  KeyNode *keyNode = ht->table[index];
+
+  // Search for the key node
+  while (keyNode != NULL)
+  {
+    if (strcmp(keyNode->key, key) == 0)
+    {
+      if (is_locking)
+      {
+        if (is_reading)
+        {
+          pthread_rwlock_rdlock(&keyNode->lock);
+        }
+        else
+        {
+          pthread_rwlock_wrlock(&keyNode->lock);
+        }
+      }
+      else
+      {
+        pthread_rwlock_unlock(&keyNode->lock);
+      }
+      return 0;
+    }
+    keyNode = keyNode->next; // Move to the next node
+  }
+
+  // Key not found, create a new key node
+  keyNode = malloc(sizeof(KeyNode));
+  keyNode->key = strdup(key); // Allocate memory for the key
+  keyNode->value = NULL;
+  pthread_rwlock_init(&keyNode->lock, NULL);
+  if (is_reading)
+  {
+    pthread_rwlock_rdlock(&keyNode->lock);
+  }
+  else
+  {
+    pthread_rwlock_wrlock(&keyNode->lock);
+  }
+  keyNode->next = ht->table[index]; // Link to existing nodes
+  ht->table[index] = keyNode;       // Place new key node at the start of the list
+  return 0;
 }
 
 int kvs_init()
@@ -57,10 +104,12 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
 
   for (size_t i = 0; i < num_pairs; i++)
   {
+    control_lock(kvs_table, keys[i], 1, 0);
     if (write_pair(kvs_table, keys[i], values[i]) != 0)
     {
       fprintf(stderr, "Failed to write keypair (%s,%s)\n", keys[i], values[i]);
     }
+    control_lock(kvs_table, keys[i], 0, 0);
   }
 
   return 0;
@@ -78,6 +127,7 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
   write(fd_out, "[", 1);
   for (size_t i = 0; i < num_pairs; i++)
   {
+    control_lock(kvs_table, keys[i], 1, 1);
     char *result = read_pair(kvs_table, keys[i]);
     len_key = strlen(keys[i]);
     if (result == NULL)
@@ -96,6 +146,7 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
       write(fd_out, ")", 1);
     }
     free(result);
+    control_lock(kvs_table, keys[i], 0, 0);
   }
   write(fd_out, "]\n", 2);
   return 0;
@@ -113,6 +164,7 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 
   for (size_t i = 0; i < num_pairs; i++)
   {
+    control_lock(kvs_table, keys[i], 1, 1);
     if (delete_pair(kvs_table, keys[i]) != 0)
     {
       if (!aux)
@@ -125,6 +177,7 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
       write(fd_out, keys[i], len_key);
       write(fd_out, ",KVSMISSING)", 11);
     }
+    control_lock(kvs_table, keys[i], 0, 0);
   }
   if (aux)
   {
@@ -139,9 +192,11 @@ void kvs_show(int fd_out)
   size_t len_key, len_value;
   for (int i = 0; i < TABLE_SIZE; i++)
   {
+
     KeyNode *keyNode = kvs_table->table[i];
     while (keyNode != NULL)
     {
+      control_lock(kvs_table, keyNode->value, 1, 1);
       len_key = strlen(keyNode->key);
       len_value = strlen(keyNode->value);
       write(fd_out, "(", 1);
@@ -150,6 +205,7 @@ void kvs_show(int fd_out)
       write(fd_out, keyNode->value, len_value);
       write(fd_out, ")\n", 2);
       keyNode = keyNode->next; // Move to the next node
+      control_lock(kvs_table, keyNode->value, 0, 0);
     }
   }
 }
@@ -158,40 +214,53 @@ int kvs_backup(struct files f, int lim_backups)
 {
   size_t len = strlen(f.input_path);
   strcpy(f.backup_path, f.input_path);
-  snprintf(f.backup_path, MAX_JOB_FILE_NAME_SIZE, "%.*s-%d.bck", (int)(len - 4), 
-          f.input_path, f.num_backups);
+  snprintf(f.backup_path, MAX_JOB_FILE_NAME_SIZE, "%.*s-%d.bck", (int)(len - 4),
+           f.input_path, f.backups_index);
 
-  if (lim_backups == 0) {
+  if (lim_backups == 0)
+  {
     int status;
     pid_t pid = wait(&status);
-    //pode ser cagativo
-    if (pid == -1) {
+    // pode ser cagativo
+    if (pid == -1)
+    {
       perror("wait deu merda");
-      return 1;} 
-    else {
-      if (WIFEXITED(status)) {
-        if (WEXITSTATUS(status) != 0) {
-          fprintf(stderr, "Child process exited with status %d\n", WEXITSTATUS(status));}
-    } else {
+      return 1;
+    }
+    else
+    {
+      if (WIFEXITED(status))
+      {
+        if (WEXITSTATUS(status) != 0)
+        {
+          fprintf(stderr, "Child process exited with status %d\n", WEXITSTATUS(status));
+        }
+      }
+      else
+      {
         fprintf(stderr, "Child process did not exit successfully\n");
       }
     }
   }
   pid_t pid = fork();
-    if (pid < 0) {
-        perror("Failed to fork");
-        return 1;
-    } else if (pid == 0) {
-        int fd_backup = open(f.backup_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (fd_backup < 0) {
-            perror("Failed to open backup file");
-            _exit(1);
-        }
-
-        kvs_show(fd_backup);
-        close(fd_backup);
-        _exit(0);
+  if (pid < 0)
+  {
+    perror("Failed to fork");
+    return 1;
+  }
+  else if (pid == 0)
+  {
+    int fd_backup = open(f.backup_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd_backup < 0)
+    {
+      perror("Failed to open backup file");
+      _exit(1);
     }
+
+    kvs_show(fd_backup);
+    close(fd_backup);
+    _exit(0);
+  }
   return 0;
 }
 
@@ -201,161 +270,179 @@ void kvs_wait(unsigned int delay_ms)
   nanosleep(&delay, NULL);
 }
 
-struct files get_next_file(DIR *dir, char *directory_path) {
-    struct files files;
+struct files get_next_file(DIR *dir, char *directory_path)
+{
+  struct files files;
 
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        size_t name_len = strlen(entry->d_name);
-        if (name_len < 4 || strcmp(entry->d_name + name_len - 4, ".job") != 0) {
-            continue; // Skip non-.job files
-        }
-
-        size_t input_len = strlen(directory_path) + name_len;
-
-        strcpy(files.input_path, directory_path); // dir_pathname/
-        strcat(files.input_path, entry->d_name);  // dir_pathname/file_name.job
-        strcpy(files.output_path, files.input_path);
-        strcpy(files.output_path + input_len - 4, ".out");
-
-        files.fd_in = open(files.input_path, O_RDONLY);
-        if (files.fd_in < 0) {
-            perror("Failed to open input file");
-            continue;
-        }
-
-        files.fd_out = open(files.output_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        if (files.fd_out < 0) {
-            perror("Failed to open output file");
-            close(files.fd_in);
-            files.fd_in = NO_FILES_LEFT;
-            continue;
-        }
-
-        return files; // Return the first valid .job file
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL)
+  {
+    size_t name_len = strlen(entry->d_name);
+    if (name_len < 4 || strcmp(entry->d_name + name_len - 4, ".job") != 0)
+    {
+      continue; // Skip non-.job files
     }
-    files.fd_in = NO_FILES_LEFT;
-    return files;
+
+    size_t input_len = strlen(directory_path) + name_len;
+
+    strcpy(files.input_path, directory_path); // dir_pathname/
+    strcat(files.input_path, entry->d_name);  // dir_pathname/file_name.job
+    strcpy(files.output_path, files.input_path);
+    strcpy(files.output_path + input_len - 4, ".out");
+
+    files.fd_in = open(files.input_path, O_RDONLY);
+    if (files.fd_in < 0)
+    {
+      perror("Failed to open input file");
+      continue;
+    }
+
+    files.fd_out = open(files.output_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (files.fd_out < 0)
+    {
+      perror("Failed to open output file");
+      close(files.fd_in);
+      files.fd_in = NO_FILES_LEFT;
+      continue;
+    }
+
+    return files; // Return the first valid .job file
+  }
+  files.fd_in = NO_FILES_LEFT;
+  return files;
 }
 
-void* process_files(void *arg) {
-    //int temp;
-    thread_args_t *args = (thread_args_t *)arg;
-    DIR *dir = args->dir;
-    char *directory_path = args->directory_path;
-    int lim_backups = args->lim_backups;
-    pthread_mutex_t trinco = args->trinco;
+void *process_files(void *arg)
+{
+  // int temp;
+  thread_args_t *args = (thread_args_t *)arg;
+  DIR *dir = args->dir;
+  char *directory_path = args->directory_path;
+  int lim_backups = args->lim_backups;
+  pthread_mutex_t file_lock = args->file_lock;
 
-    while (1) {
-      pthread_mutex_lock(&trinco);
-        struct files files = get_next_file(dir, directory_path);
-        files.num_backups = 0;
-        pthread_mutex_unlock(&trinco);
-        if (files.fd_in < 0) {
-            break;
+  while (1)
+  {
+    pthread_mutex_lock(&file_lock);
+    struct files files = get_next_file(dir, directory_path);
+    files.backups_index = 0;
+    pthread_mutex_unlock(&file_lock);
+    if (files.fd_in < 0)
+    {
+      break;
+    }
+
+    int done = 0;
+    while (!done)
+    {
+      char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
+      char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
+      unsigned int delay;
+      size_t num_pairs;
+
+      int command = get_next(files.fd_in);
+      switch (command)
+      {
+      case CMD_WRITE:
+        num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        if (num_pairs == 0)
+        {
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+          continue;
         }
 
-        int done = 0;
-        while (!done) {
-            char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
-            char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
-            unsigned int delay;
-            size_t num_pairs;
-
-            int command = get_next(files.fd_in);
-            switch (command) {
-                case CMD_WRITE:
-                    num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
-                    if (num_pairs == 0) {
-                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                        continue;
-                    }
-
-                    if (kvs_write(num_pairs, keys, values)) {
-                        write(STDERR_FILENO, "Failed to write pair\n", 21);
-                    }
-                    break;
-
-                case CMD_READ:
-                    num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
-                    if (num_pairs == 0) {
-                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                        continue;
-                    }
-
-                    if (kvs_read(files.fd_out, num_pairs, keys)) {
-                        write(STDERR_FILENO, "Failed to read pair\n", 20);
-                    }
-                    break;
-
-                case CMD_DELETE:
-                    num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
-                    if (num_pairs == 0) {
-                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                        continue;
-                    }
-
-                    if (kvs_delete(files.fd_out, num_pairs, keys)) {
-                        write(STDERR_FILENO, "Failed to delete pair\n", 22);
-                    }
-                    break;
-
-                case CMD_SHOW:
-                    kvs_show(files.fd_out);
-                    break;
-
-                case CMD_WAIT:
-                    if (parse_wait(files.fd_in, &delay, NULL) == -1) {
-                        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                        continue;
-                    }
-
-                    if (delay > 0) {
-                        printf("Waiting...\n");
-                        kvs_wait(delay);
-                    }
-                    break;
-
-                case CMD_BACKUP:
-                    files.num_backups++;
-                    if (kvs_backup(files, lim_backups) == 1) {
-                        write(STDERR_FILENO, "Failed to perform backup.\n", 26);
-                        files.num_backups--;
-                    }
-                    break;
-                
-                case CMD_EMPTY:
-                    continue;
-
-                case EOC:
-                    close(files.fd_in);
-                    close(files.fd_out);
-                    done = 1;
-                    break;
-
-                case CMD_INVALID:
-                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                    break;
-
-                case CMD_HELP:
-                    printf(
-                        "Available commands:\n"
-                        "  WRITE [(key,value)(key2,value2),...]\n"
-                        "  READ [key,key2,...]\n"
-                        "  DELETE [key,key2,...]\n"
-                        "  SHOW\n"
-                        "  WAIT <delay_ms>\n"
-                        "  BACKUP\n"
-                        "  HELP\n"
-                    );
-                    break;
-
-                default:
-                    write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
-                    break;
-            }
+        if (kvs_write(num_pairs, keys, values))
+        {
+          write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
+        break;
+
+      case CMD_READ:
+        num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        if (num_pairs == 0)
+        {
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+          continue;
         }
 
-    return NULL;
+        if (kvs_read(files.fd_out, num_pairs, keys))
+        {
+          write(STDERR_FILENO, "Failed to read pair\n", 20);
+        }
+        break;
+
+      case CMD_DELETE:
+        num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        if (num_pairs == 0)
+        {
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+          continue;
+        }
+
+        if (kvs_delete(files.fd_out, num_pairs, keys))
+        {
+          write(STDERR_FILENO, "Failed to delete pair\n", 22);
+        }
+        break;
+
+      case CMD_SHOW:
+        kvs_show(files.fd_out);
+        break;
+
+      case CMD_WAIT:
+        if (parse_wait(files.fd_in, &delay, NULL) == -1)
+        {
+          write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+          continue;
+        }
+
+        if (delay > 0)
+        {
+          printf("Waiting...\n");
+          kvs_wait(delay);
+        }
+        break;
+
+      case CMD_BACKUP:
+        files.backups_index++;
+        if (kvs_backup(files, lim_backups) == 1)
+        {
+          write(STDERR_FILENO, "Failed to perform backup.\n", 26);
+          files.backups_index--;
+        }
+        break;
+
+      case CMD_EMPTY:
+        continue;
+
+      case EOC:
+        close(files.fd_in);
+        close(files.fd_out);
+        done = 1;
+        break;
+
+      case CMD_INVALID:
+        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+        break;
+
+      case CMD_HELP:
+        printf(
+            "Available commands:\n"
+            "  WRITE [(key,value)(key2,value2),...]\n"
+            "  READ [key,key2,...]\n"
+            "  DELETE [key,key2,...]\n"
+            "  SHOW\n"
+            "  WAIT <delay_ms>\n"
+            "  BACKUP\n"
+            "  HELP\n");
+        break;
+
+      default:
+        write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
+        break;
+      }
+    }
+  }
+
+  return NULL;
 }

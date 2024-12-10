@@ -4,16 +4,22 @@
 #define TABLE_SIZE 26
 
 #include <stddef.h>
+#include <pthread.h>
 
-typedef struct KeyNode {
+typedef struct KeyNode
+{
     char *key;
     char *value;
+    pthread_rwlock_t lock;
     struct KeyNode *next;
 } KeyNode;
 
-typedef struct HashTable {
+typedef struct HashTable
+{
     KeyNode *table[TABLE_SIZE];
 } HashTable;
+
+int hash(const char *key);
 
 /// Creates a new event hash table.
 /// @return Newly created hash table, NULL on failure
@@ -30,7 +36,7 @@ int write_pair(HashTable *ht, const char *key, const char *value);
 /// @param ht Hash table to delete from.
 /// @param key Key of the pair to be deleted.
 /// @return 0 if the node was deleted successfully, 1 otherwise.
-char* read_pair(HashTable *ht, const char *key);
+char *read_pair(HashTable *ht, const char *key);
 
 /// Appends a new node to the list.
 /// @param list Event list to be modified.
@@ -42,5 +48,4 @@ int delete_pair(HashTable *ht, const char *key);
 /// @param ht Hash table to be deleted.
 void free_table(HashTable *ht);
 
-
-#endif  // KVS_H
+#endif // KVS_H
