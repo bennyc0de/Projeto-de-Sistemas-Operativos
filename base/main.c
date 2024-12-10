@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <pthread.h>
 #include "constants.h"
 #include "parser.h"
 #include "operations.h"
@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
 {
   DIR *dir;
   int fd_in, fd_out;
-  // tem que ter 2 ou 3 args
-  if (argc < 3)
+  // tem que ter 4 args
+  if (argc != 4)
   {
     fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
     return -1;
@@ -33,7 +33,14 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  //int max_threads = atoi(argv[3]);
   int lim_backups = atoi(argv[2]);
+
+  //pthread_t tid[max_threads];
+  //for(int i = 0; i < max_threads; i++) {
+
+    //pthread_create(&tid[i], NULL, );
+  //}
   while (1)
   {
     struct files files = get_next_file(dir, argv[1]);
@@ -125,6 +132,7 @@ int main(int argc, char *argv[])
         if (kvs_backup(files, lim_backups) == 1)
         {
           write(STDERR_FILENO, "Failed to perform backup.\n", 26);
+          files.num_backups--;
         }
         if (lim_backups > 0) {
           lim_backups--;

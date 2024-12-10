@@ -175,9 +175,6 @@ int kvs_backup(struct files f, int lim_backups)
       }
     }
   }
-  if(lim_backups != 0) {
-    lim_backups--;
-  }
   pid_t pid = fork();
     if (pid < 0) {
         perror("Failed to fork");
