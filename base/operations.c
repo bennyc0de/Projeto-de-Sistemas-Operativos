@@ -250,8 +250,6 @@ void* process_files(void *arg) {
       pthread_mutex_lock(&trinco);
         struct files files = get_next_file(dir, directory_path);
         files.num_backups = 0;
-        files.fd_in;
-        files.fd_out;
         pthread_mutex_unlock(&trinco);
         if (files.fd_in < 0) {
             break;
@@ -269,8 +267,9 @@ void* process_files(void *arg) {
                 if (command == EOC) {
                     close(files.fd_in);
                     close(files.fd_out);
+                    break;
                 }
-                break;
+                continue;
             }
 
             switch (command) {

@@ -1,0 +1,6 @@
+WRITE (key1,value1)(key2,value2)
+READ key1,key2
+DELETE key1,key2
+SHOW
+WAIT 1000
+BACKUP
