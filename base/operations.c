@@ -239,6 +239,7 @@ struct files get_next_file(DIR *dir, char *directory_path) {
 }
 
 void* process_files(void *arg) {
+    int temp;
     thread_args_t *args = (thread_args_t *)arg;
     DIR *dir = args->dir;
     char *directory_path = args->directory_path;
@@ -255,6 +256,8 @@ void* process_files(void *arg) {
             break;
         }
 
+        fprintf(STDERR_FILENO, "Thread %ld processing file: %s\n", pthread_self(), files.input_path);
+
         int done = 0;
         while (!done) {
             char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
@@ -263,15 +266,6 @@ void* process_files(void *arg) {
             size_t num_pairs;
 
             int command = get_next(files.fd_in);
-            if (command == CMD_EMPTY || command == EOC) {
-                if (command == EOC) {
-                    close(files.fd_in);
-                    close(files.fd_out);
-                    break;
-                }
-                continue;
-            }
-
             switch (command) {
                 case CMD_WRITE:
                     num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
@@ -332,6 +326,15 @@ void* process_files(void *arg) {
                         files.num_backups--;
                     }
                     break;
+                
+                case CMD_EMPTY:
+                    continue;
+
+                case EOC:
+                    close(files.fd_in);
+                    close(files.fd_out);
+                    done = 1;
+                    break;
 
                 case CMD_INVALID:
                     write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
@@ -355,6 +358,9 @@ void* process_files(void *arg) {
                     break;
             }
         }
+        // Simulate some work with sleep
+        fprintf(STDERR_FILENO, "Thread %ld finished processing file: %s\n", pthread_self(), files.input_path);
+        sleep(1); // Simulate work
         }
 
     return NULL;
