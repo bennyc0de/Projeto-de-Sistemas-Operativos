@@ -4,6 +4,8 @@ READ [c1]
 # Criação e escrita de 2 chaves
 WRITE [(d1,v1)(chave2,valor-exemplo)]
 
+SHOW 
+
 # Leitura de chave existente
 READ [chave2]
 

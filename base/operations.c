@@ -45,16 +45,22 @@ int init_lock()
   return 0;
 }
 
-void lock_unlock(char *key, int is_reading, int is_locking) {
-  int index = hash(key);
-  if (is_locking) {
-    if (is_reading) {
-      pthread_rwlock_rdlock(&locks[index]);
+int lock_unlock(int *indices, int is_locking, int is_reading) {
+  int n_hashes = sizeof(&indices) / sizeof(indices[0]);
+
+  for (int i = 0; i < n_hashes; i++) {
+    int idx = indices[i];
+    if (is_locking) {
+      if (is_reading) {
+        pthread_rwlock_rdlock(&locks[idx]);
+      } else {
+        pthread_rwlock_wrlock(&locks[idx]);
+      }
     } else {
-      pthread_rwlock_wrlock(&locks[index]);
+      pthread_rwlock_unlock(&locks[idx]);
     }
-    pthread_rwlock_unlock(&locks[index]);
   }
+  return 0;
 }
 
 int kvs_terminate()
@@ -79,12 +85,10 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
 
   for (size_t i = 0; i < num_pairs; i++)
   {
-    lock_unlock(keys[i], 0, 1);
     if (write_pair(kvs_table, keys[i], values[i]) != 0)
     {
       fprintf(stderr, "Failed to write keypair (%s,%s)\n", keys[i], values[i]);
     }
-    lock_unlock(keys[i], 0, 0);
   }
 
   return 0;
@@ -102,7 +106,6 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
   write(fd_out, "[", 1);
   for (size_t i = 0; i < num_pairs; i++)
   {
-    lock_unlock(keys[i], 1, 1);
     char *result = read_pair(kvs_table, keys[i]);
     len_key = strlen(keys[i]);
     if (result == NULL)
@@ -121,7 +124,6 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
       write(fd_out, ")", 1);
     }
     free(result);
-    lock_unlock(keys[i], 1, 0);
   }
   write(fd_out, "]\n", 2);
   return 0;
@@ -139,7 +141,6 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 
   for (size_t i = 0; i < num_pairs; i++)
   {
-    lock_unlock(keys[i], 0, 1);
     if (delete_pair(kvs_table, keys[i]) != 0)
     {
       if (!aux)
@@ -148,7 +149,6 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
         aux = 1;
       }
       len_key = strlen(keys[i]);
-      lock_unlock(keys[i], 0, 0);
       write(fd_out, "(", 1);
       write(fd_out, keys[i], len_key);
       write(fd_out, ",KVSMISSING)", 11);
@@ -268,6 +268,42 @@ struct files get_next_file(DIR *dir, char *directory_path) {
     return files;
 }
 
+void insertion_sort(int *order, size_t num_pairs) {
+    for (size_t i = 1; i < num_pairs; i++) {
+        int key = order[i];
+        int j = (int)i - 1;
+
+        // Move elements of order[0..i-1], that are greater than key, to one position ahead of their current position
+        while (j >= 0 && order[j] > key) {
+            order[j + 1] = order[j];
+            j--;
+        }
+        order[j + 1] = key;
+    }
+}
+
+int contains_int(const int *array, size_t size, int value) {
+    for (size_t i = 0; i < size; i++) {
+        if (array[i] == value) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int* hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs) {
+  int *order = malloc(num_pairs * sizeof(int));
+  for (size_t i = 0; i < num_pairs; i++) {
+    if(!contains_int(order, i, hash(keys[i]))) {
+    order[i] = hash(keys[i]);
+  }
+  continue;
+  }
+  insertion_sort(order, num_pairs);
+
+  return order;
+}
+
 void* process_files(void *arg) {
     //int temp;
     thread_args_t *args = (thread_args_t *)arg;
@@ -299,10 +335,13 @@ void* process_files(void *arg) {
                     if (num_pairs == 0) {
                         write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                         continue;
-                    }                   
+                    }
+                    int* ordered_keys = hash_and_order(keys, num_pairs);
+                    lock_unlock(ordered_keys, 1, 0);        
                     if (kvs_write(num_pairs, keys, values)) {
                         write(STDERR_FILENO, "Failed to write pair\n", 21);
                     }
+                    lock_unlock(ordered_keys, 0, 0);
                     break;
 
                 case CMD_READ:
