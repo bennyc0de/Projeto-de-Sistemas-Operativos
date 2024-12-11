@@ -311,7 +311,7 @@ void* process_files(void *arg) {
                     }
 
                     if (delay > 0) {
-                        write(files.fd_out, "Waiting...\n");
+                        write(files.fd_out, "Waiting...\n", 10);
                         kvs_wait(delay);
                     }
                     break;
@@ -346,7 +346,8 @@ void* process_files(void *arg) {
                         "  SHOW\n"
                         "  WAIT <delay_ms>\n"
                         "  BACKUP\n"
-                        "  HELP\n"
+                        "  HELP\n", 
+                        146
                     );
                     break;
 
