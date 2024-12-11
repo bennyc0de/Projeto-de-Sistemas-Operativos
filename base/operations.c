@@ -311,7 +311,7 @@ void* process_files(void *arg) {
                     }
 
                     if (delay > 0) {
-                        printf("Waiting...\n");
+                        write(files.fd_out, "Waiting...\n");
                         kvs_wait(delay);
                     }
                     break;
@@ -338,7 +338,7 @@ void* process_files(void *arg) {
                     break;
 
                 case CMD_HELP:
-                    printf(
+                    write(files.fd_out,
                         "Available commands:\n"
                         "  WRITE [(key,value)(key2,value2),...]\n"
                         "  READ [key,key2,...]\n"
