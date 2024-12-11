@@ -2,7 +2,7 @@
 READ [c1]
 
 # Criação e escrita de 2 chaves
-WRITE [(c1,v1)(chave2,valor-exemplo)]
+WRITE [(d1,v1)(chave2,valor-exemplo)]
 
 # Leitura de chave existente
 READ [chave2]
@@ -14,7 +14,7 @@ WRITE [(chave2,valor-exemplo2)(umaChave,umValor)]
 BACKUP
 
 # Eliminação de chave existente e de chave não existente
-DELETE [c1,chaveAleatoria]
+DELETE [d1,chaveAleatoria]
 
 # Espera de um segundo
 WAIT 1000

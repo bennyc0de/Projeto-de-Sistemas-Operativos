@@ -1,7 +1,8 @@
 [(c1,KVSERROR)]
 [(chave2,valor-exemplo)]
 [(chaveAleatoria,KVSMISSING]
-Waiting...(chave2,valor-exemplo2)
+Waiting...
+(chave2,valor-exemplo2)
 (key6,value6)
 (key5,value5)
 (key4,value4)

@@ -12,8 +12,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-
 static struct HashTable *kvs_table = NULL;
+pthread_rwlock_t locks[TABLE_SIZE];
 
 /// Calculates a timespec from a delay in milliseconds.
 /// @param delay_ms Delay in milliseconds.
@@ -33,6 +33,28 @@ int kvs_init()
 
   kvs_table = create_hash_table();
   return kvs_table == NULL;
+}
+
+int init_lock()
+{
+  for (size_t i = 0; i < TABLE_SIZE; i++) {
+    if (pthread_rwlock_init(&locks[i], NULL) != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+void lock_unlock(char *key, int is_reading, int is_locking) {
+  int index = hash(key);
+  if (is_locking) {
+    if (is_reading) {
+      pthread_rwlock_rdlock(&locks[index]);
+    } else {
+      pthread_rwlock_wrlock(&locks[index]);
+    }
+    pthread_rwlock_unlock(&locks[index]);
+  }
 }
 
 int kvs_terminate()
@@ -57,10 +79,12 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
 
   for (size_t i = 0; i < num_pairs; i++)
   {
+    lock_unlock(keys[i], 0, 1);
     if (write_pair(kvs_table, keys[i], values[i]) != 0)
     {
       fprintf(stderr, "Failed to write keypair (%s,%s)\n", keys[i], values[i]);
     }
+    lock_unlock(keys[i], 0, 0);
   }
 
   return 0;
@@ -78,6 +102,7 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
   write(fd_out, "[", 1);
   for (size_t i = 0; i < num_pairs; i++)
   {
+    lock_unlock(keys[i], 1, 1);
     char *result = read_pair(kvs_table, keys[i]);
     len_key = strlen(keys[i]);
     if (result == NULL)
@@ -96,6 +121,7 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
       write(fd_out, ")", 1);
     }
     free(result);
+    lock_unlock(keys[i], 1, 0);
   }
   write(fd_out, "]\n", 2);
   return 0;
@@ -113,6 +139,7 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 
   for (size_t i = 0; i < num_pairs; i++)
   {
+    lock_unlock(keys[i], 0, 1);
     if (delete_pair(kvs_table, keys[i]) != 0)
     {
       if (!aux)
@@ -121,6 +148,7 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
         aux = 1;
       }
       len_key = strlen(keys[i]);
+      lock_unlock(keys[i], 0, 0);
       write(fd_out, "(", 1);
       write(fd_out, keys[i], len_key);
       write(fd_out, ",KVSMISSING)", 11);
@@ -136,9 +164,11 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 
 void kvs_show(int fd_out)
 {
+  
   size_t len_key, len_value;
   for (int i = 0; i < TABLE_SIZE; i++)
   {
+    
     KeyNode *keyNode = kvs_table->table[i];
     while (keyNode != NULL)
     {
@@ -269,8 +299,7 @@ void* process_files(void *arg) {
                     if (num_pairs == 0) {
                         write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
                         continue;
-                    }
-
+                    }                   
                     if (kvs_write(num_pairs, keys, values)) {
                         write(STDERR_FILENO, "Failed to write pair\n", 21);
                     }
@@ -311,7 +340,7 @@ void* process_files(void *arg) {
                     }
 
                     if (delay > 0) {
-                        write(files.fd_out, "Waiting...\n", 10);
+                        write(files.fd_out, "Waiting...\n", 11);
                         kvs_wait(delay);
                     }
                     break;

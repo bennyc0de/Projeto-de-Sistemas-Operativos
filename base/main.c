@@ -25,6 +25,13 @@ int main(int argc, char *argv[])
     perror("Failed to initialize KVS\n");
     return 1;
   }
+
+  if (init_lock())
+  {
+    perror("Failed to initialize lock\n");
+    return 1;
+  }
+
   dir = opendir(argv[1]);
   if (!dir)
   {

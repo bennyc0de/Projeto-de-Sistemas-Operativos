@@ -8,6 +8,8 @@
 
 void* process_files(void *arg);
 
+int init_lock();
+
 /// Initializes the KVS state.
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
 int kvs_init();
