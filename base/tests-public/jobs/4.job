@@ -3,3 +3,8 @@ WRITE [(b,beatriz)(b,bernardo)(b,bruno)(b,benicio)(b,berenice)]
 WRITE [(b,beatriz)(b,bernardo)(b,bruno)(b,benicio)(b,berenice)]
 # berenice should override the previous ones
 SHOW
+# This test verifies that deleting keys that don't exist creates an error
+DELETE [c1,c2]
+WRITE [(Escritor1,EcaDeQueiroz)]
+DELETE [Escritor1,Escritor1]
+DELETE [Escritor1]

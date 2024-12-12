@@ -262,6 +262,7 @@ struct files get_next_file(DIR *dir, char *directory_path)
   struct files files;
 
   struct dirent *entry;
+  strcat(directory_path, "/");
   while ((entry = readdir(dir)) != NULL)
   {
     size_t name_len = strlen(entry->d_name);
@@ -339,11 +340,26 @@ int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs, int *element
       order[*elements_added] = hash(keys[i]);
       (*elements_added)++;
     }
-    continue;
   }
   insertion_sort(order, num_pairs);
 
   return order;
+}
+
+void unlock_all()
+{
+  for (int idx = 0; idx < TABLE_SIZE; idx++)
+  {
+    pthread_rwlock_unlock(&locks[idx]);
+  }
+}
+
+void lock_all()
+{
+  for (int idx = 0; idx < TABLE_SIZE; idx++)
+  {
+    pthread_rwlock_wrlock(&locks[idx]);
+  }
 }
 
 void *process_files(void *arg)
@@ -378,7 +394,9 @@ void *process_files(void *arg)
       int command = get_next(files.fd_in);
       switch (command)
       {
+
       case CMD_WRITE:
+        lock_all();
         num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
@@ -386,34 +404,38 @@ void *process_files(void *arg)
           continue;
         }
 
-        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        // ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
+        //  lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
         if (kvs_write(num_pairs, keys, values))
         {
           write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
-        free(ordered_keys);
+        // lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        // free(ordered_keys);
+        unlock_all();
         break;
 
       case CMD_READ:
+        lock_all();
         num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
+        // ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
+        // lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
         if (kvs_read(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
-        free(ordered_keys);
+        // lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        // free(ordered_keys);
+        unlock_all();
         break;
 
       case CMD_DELETE:
+        // lock_all();
         num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
@@ -428,18 +450,13 @@ void *process_files(void *arg)
         }
         lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
         free(ordered_keys);
+        // unlock_all();
         break;
 
       case CMD_SHOW:
-        for (int idx = 0; idx < TABLE_SIZE; idx++)
-        {
-          pthread_rwlock_rdlock(&locks[idx]);
-        }
+        lock_all();
         kvs_show(files.fd_out);
-        for (int idx = 0; idx < TABLE_SIZE; idx++)
-        {
-          pthread_rwlock_unlock(&locks[idx]);
-        }
+        unlock_all();
         break;
 
       case CMD_WAIT:
