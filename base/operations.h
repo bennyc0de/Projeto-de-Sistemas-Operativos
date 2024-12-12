@@ -6,7 +6,9 @@
 #include <dirent.h>
 #include "files.h"
 
-void* process_files(void *arg);
+int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs);
+
+void *process_files(void *arg);
 
 int init_lock();
 
@@ -56,4 +58,4 @@ void kvs_wait(unsigned int delay_ms);
 
 /// Gets the next file in the directory.
 struct files get_next_file(DIR *dir, char *directory_path);
-#endif  // KVS_OPERATIONS_H
+#endif // KVS_OPERATIONS_H
