@@ -7,3 +7,10 @@ SHOW
 DELETE [c]
 READ [c]
 SHOW
+WRITE [(a,anxa)(b,bernordo)]
+WRITE [(d,dinis)(c,carlota)]
+READ [a,b,s,c,d]
+SHOW
+DELETE [e]
+READ [c]
+SHOW

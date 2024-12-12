@@ -1,0 +1,12 @@
+BACKUP
+WRITE [(h5,86)(p5,89)(s9,42)(j2,93)]
+WAIT 1000
+WRITE [(z8,49)(b9,30)]
+READ [j2]
+WRITE [(w0,11)(q4,56)(x5,88)(y6,85)]
+READ [y6]
+WRITE [(n0,51)(a3,58)(m9,59)(i6,56)(p2,26)]
+WRITE [(u3,51)(b8,24)(l3,94)(h0,3)]
+WRITE [(k7,52)(y7,95)]
+WRITE [(b1,48)]
+DELETE [j2,a3,y7]

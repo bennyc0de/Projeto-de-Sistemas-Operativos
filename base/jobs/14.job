@@ -1,0 +1,13 @@
+WRITE [(c1,10)]
+WRITE [(t1,5)(c3,88)(t0,79)(f1,61)]
+WRITE [(m8,25)]
+SHOW
+BACKUP
+WRITE [(k9,79)(o1,97)]
+WRITE [(o7,4)(s7,69)(g3,39)(u5,65)(u4,38)]
+WRITE [(x3,77)(h4,93)(j6,31)(z8,55)]
+DELETE [s7,z8]
+WAIT 2000
+BACKUP
+DELETE [t0,f1,x3]
+READ [u4]

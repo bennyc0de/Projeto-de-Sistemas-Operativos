@@ -1,0 +1,21 @@
+WRITE [(f3,21)]
+WRITE [(h4,90)(f7,99)(l5,14)(i7,48)(s3,39)]
+WAIT 3000
+DELETE [i7,l5,h4]
+WRITE [(l9,76)]
+WRITE [(a0,7)]
+BACKUP
+READ [l9]
+SHOW
+WRITE [(s0,39)]
+DELETE [f7,f3,l9,s3,a0]
+SHOW
+DELETE [s0]
+SHOW
+WRITE [(j7,79)]
+WRITE [(s3,50)(s8,88)(k5,61)(w4,6)(e4,59)]
+READ [w4]
+WAIT 2000
+READ [w4]
+DELETE [e4,w4,s8,s3]
+DELETE [k5,j7]

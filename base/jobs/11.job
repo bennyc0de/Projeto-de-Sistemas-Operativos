@@ -1,0 +1,15 @@
+WRITE [(w5,8)(x1,67)(v7,86)(r6,20)(t1,2)]
+DELETE [x1,r6]
+READ [t1]
+WRITE [(v9,87)(y5,78)(s8,30)(f0,93)]
+WRITE [(b3,96)(u3,61)]
+READ [v7]
+WRITE [(c9,66)(h5,37)(g8,8)(d2,93)]
+WRITE [(n5,29)(i9,59)]
+WRITE [(v0,87)(y9,78)(w7,27)(z2,25)]
+READ [i9]
+DELETE [h5]
+WRITE [(q2,39)]
+READ [v0]
+BACKUP
+SHOW

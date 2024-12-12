@@ -1,0 +1,18 @@
+SHOW
+BACKUP
+BACKUP
+SHOW
+SHOW
+WRITE [(t5,91)(v1,55)(i3,12)]
+READ [v1]
+WRITE [(r9,94)]
+DELETE [i3,t5,v1]
+WRITE [(b3,32)(e6,81)(d9,66)(z8,43)]
+READ [d9]
+READ [e6]
+BACKUP
+WRITE [(t4,67)(d7,23)]
+WRITE [(r2,72)(h6,65)(o3,32)]
+DELETE [z8,d9]
+BACKUP
+WRITE [(m5,17)(f4,38)(y7,45)]

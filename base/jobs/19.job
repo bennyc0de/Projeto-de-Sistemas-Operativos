@@ -1,0 +1,10 @@
+WRITE [(i1,52)]
+WRITE [(x6,40)(u0,67)(d4,93)]
+WRITE [(q0,44)(g7,95)(b3,63)(w7,57)(u1,23)]
+SHOW
+WRITE [(l8,5)(g4,76)(i4,54)(f1,76)]
+WRITE [(k6,33)]
+READ [x6]
+WRITE [(u4,14)]
+WRITE [(a1,18)(h4,34)(y5,4)]
+DELETE [l8]

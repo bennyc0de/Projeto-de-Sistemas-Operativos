@@ -108,8 +108,11 @@ int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_
   return 0;
 }
 
-int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
+int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE], int n_hashes)
 {
+  for(int idx = 0; idx < n_hashes; idx++){
+    pthread_rwlock_rdlock(&locks[idx]);}
+  
   size_t len_key, len_res;
   if (kvs_table == NULL)
   {
@@ -137,6 +140,8 @@ int kvs_read(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
       write(fd_out, result, len_res);
       write(fd_out, ")", 1);
     }
+    for(int idx = 0; idx < n_hashes; idx++){
+      pthread_rwlock_unlock(&locks[idx]);}
     free(result);
   }
   write(fd_out, "]\n", 2);
@@ -387,12 +392,18 @@ void *process_files(void *arg)
         }
 
         ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        //lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_wrlock(&locks[idx]);}
+        write(STDOUT_FILENO, "locking write\n", 14);
         if (kvs_write(num_pairs, keys, values))
         {
           write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_unlock(&locks[idx]);}
+        //lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        write(STDOUT_FILENO, "unlocking write\n", 16);
         free(ordered_keys);
         break;
 
@@ -404,12 +415,18 @@ void *process_files(void *arg)
           continue;
         }
         ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
-        if (kvs_read(files.fd_out, num_pairs, keys))
+        //lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_rdlock(&locks[idx]);}
+        write(STDOUT_FILENO, "locking read\n", 13);
+        if (kvs_read(files.fd_out, num_pairs, keys, n_hashes))
         {
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        //lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_unlock(&locks[idx]);}
+        write(STDOUT_FILENO, "unlocking read\n", 15);
         free(ordered_keys);
         break;
 
@@ -421,12 +438,18 @@ void *process_files(void *arg)
           continue;
         }
         ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        //lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_wrlock(&locks[idx]);}
+        write(STDOUT_FILENO, "locking delete\n", 15);
         if (kvs_delete(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        for(int idx = 0; idx < n_hashes; idx++){
+        pthread_rwlock_unlock(&locks[idx]);}
+        //lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        write(STDOUT_FILENO, "unlocking delete\n", 17);
         free(ordered_keys);
         break;
 
@@ -434,11 +457,13 @@ void *process_files(void *arg)
         for (int idx = 0; idx < TABLE_SIZE; idx++)
         {
           pthread_rwlock_rdlock(&locks[idx]);
+          write(STDOUT_FILENO, "locking show\n", 13);
         }
         kvs_show(files.fd_out);
-        for (int idx = 0; idx < TABLE_SIZE; idx++)
+        for (int idx = TABLE_SIZE - 1; idx >= 0; idx--)
         {
           pthread_rwlock_unlock(&locks[idx]);
+          write(STDOUT_FILENO, "unlocking show\n", 15);
         }
         break;
 

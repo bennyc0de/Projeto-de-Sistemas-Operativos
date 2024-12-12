@@ -1,0 +1,16 @@
+WRITE [(i4,48)(z7,93)(w8,51)(q3,78)(f8,96)]
+BACKUP
+READ [i4]
+READ [i4]
+DELETE [q3,f8,i4,w8]
+WRITE [(t6,14)(m8,92)(t4,98)]
+BACKUP
+WRITE [(q2,70)(k4,20)(x5,70)]
+WRITE [(a1,33)]
+WRITE [(l4,65)(t2,69)(y8,69)]
+WRITE [(e7,91)(t1,53)(j0,72)(h6,91)]
+DELETE [x5,t1]
+WRITE [(i9,2)(z9,72)(f2,12)(q5,14)(r1,27)]
+SHOW
+WRITE [(f9,47)]
+READ [k4]
