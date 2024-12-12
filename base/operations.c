@@ -337,7 +337,7 @@ int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs, int *element
     if (!contains_int(order, *elements_added, hash(keys[i])))
     {
       order[*elements_added] = hash(keys[i]);
-      elements_added++;
+      (*elements_added)++;
     }
     continue;
   }

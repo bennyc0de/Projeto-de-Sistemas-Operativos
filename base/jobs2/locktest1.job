@@ -1,0 +1,4 @@
+WRITE [(a,anna)(b,bernardo)]
+WRITE [(d,dinis)(c,carlota)]
+READ [d,d,a,c]
+READ [d,d,a,c]
