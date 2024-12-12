@@ -12,10 +12,10 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-LOCKING = 1;
-READING = 1;
-UNLOCKING = 0;
-WRITING = 0;
+int LOCKING = 1;
+int READING = 1;
+int UNLOCKING = 0;
+int WRITING = 0;
 
 static struct HashTable *kvs_table = NULL;
 pthread_rwlock_t locks[TABLE_SIZE];
@@ -375,7 +375,8 @@ void *process_files(void *arg)
       unsigned int delay;
       size_t num_pairs;
 
-      switch (get_next(files.fd_in))
+      int command = get_next(files.fd_in);
+      switch (command)
       {
       case CMD_WRITE:
         num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
@@ -392,6 +393,7 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
         lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        free(ordered_keys);
         break;
 
       case CMD_READ:
@@ -408,6 +410,7 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
         lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        free(ordered_keys);
         break;
 
       case CMD_DELETE:
@@ -424,6 +427,7 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
         lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
+        free(ordered_keys);
         break;
 
       case CMD_SHOW:
