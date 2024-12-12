@@ -52,31 +52,6 @@ int init_lock()
   return 0;
 }
 
-int lock_unlock(int *indices, int is_locking, int is_reading, int n_hashes)
-{
-
-  for (int i = 0; i < n_hashes; i++)
-  {
-    int idx = indices[i];
-    if (is_locking)
-    {
-      if (is_reading)
-      {
-        pthread_rwlock_rdlock(&locks[idx]);
-      }
-      else
-      {
-        pthread_rwlock_wrlock(&locks[idx]);
-      }
-    }
-    else
-    {
-      pthread_rwlock_unlock(&locks[idx]);
-    }
-  }
-  return 0;
-}
-
 int kvs_terminate()
 {
   if (kvs_table == NULL)
@@ -208,10 +183,8 @@ int kvs_backup(struct files f, int lim_backups)
   {
     int status;
     pid_t pid = wait(&status);
-    // pode ser cagativo
     if (pid == -1)
     {
-      perror("wait deu merda");
       return 1;
     }
     else
@@ -300,50 +273,67 @@ struct files get_next_file(DIR *dir, char *directory_path)
   return files;
 }
 
-void insertion_sort(int *order, size_t num_pairs)
+int *get_hashes(char keys[][MAX_STRING_SIZE], size_t num_keys, int *num_hashes)
 {
-  for (size_t i = 1; i < num_pairs; i++)
+  *num_hashes = 0;
+  int *hashes_list = malloc(num_keys * sizeof(int));
+  for (size_t idx = 0; idx < num_keys; idx++)
   {
-    int key = order[i];
-    int j = (int)i - 1;
+    hashes_list[*num_hashes] = hash(keys[idx]);
+    (*num_hashes)++;
+  }
+  return hashes_list;
+}
 
-    // Move elements of order[0..i-1], that are greater than key, to one position ahead of their current position
-    while (j >= 0 && order[j] > key)
+void bubbleSort(int list[], int n_hashes)
+{
+  for (int i = 0; i < n_hashes - 1; i++)
+  {
+    for (int j = 0; j < n_hashes - i - 1; j++)
     {
-      order[j + 1] = order[j];
-      j--;
+      if (list[j] > list[j + 1])
+      {
+        int temp = list[j];
+        list[j] = list[j + 1];
+        list[j + 1] = temp;
+      }
     }
-    order[j + 1] = key;
   }
 }
 
-int contains_int(const int *array, int size, int value)
+int *lock_write_positions(char keys[][MAX_STRING_SIZE], size_t num_keys, int *num_hashes)
 {
-  for (int i = 0; i < size; i++)
+  int *hashes_list = get_hashes(keys, num_keys, num_hashes);
+
+  bubbleSort(hashes_list, *num_hashes);
+
+  for (int idx = 0; idx < (*num_hashes); idx++)
   {
-    if (array[i] == value)
-    {
-      return 1;
-    }
+    pthread_rwlock_wrlock(&locks[idx]);
   }
-  return 0;
+  return hashes_list;
 }
 
-int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs, int *elements_added)
+int *lock_read_positions(char keys[][MAX_STRING_SIZE], size_t num_keys, int *num_hashes)
 {
-  *elements_added = 0;
-  int *order = malloc(num_pairs * sizeof(int));
-  for (size_t i = 0; i < num_pairs; i++)
-  {
-    if (!contains_int(order, *elements_added, hash(keys[i])))
-    {
-      order[*elements_added] = hash(keys[i]);
-      (*elements_added)++;
-    }
-  }
-  insertion_sort(order, num_pairs);
+  int *hashes_list = get_hashes(keys, num_keys, num_hashes);
 
-  return order;
+  bubbleSort(hashes_list, *num_hashes);
+
+  for (int idx = 0; idx < (*num_hashes); idx++)
+  {
+    pthread_rwlock_rdlock(&locks[idx]);
+  }
+  return hashes_list;
+}
+
+void unlock_positions(int hashes_list[], int num_hashes)
+{
+  for (int idx = num_hashes - 1; idx >= 0; idx--)
+  {
+    pthread_rwlock_unlock(&locks[idx]);
+  }
+  free(hashes_list);
 }
 
 void unlock_all()
@@ -354,31 +344,30 @@ void unlock_all()
   }
 }
 
-void lock_all()
+void read_lock_all()
 {
   for (int idx = 0; idx < TABLE_SIZE; idx++)
   {
-    pthread_rwlock_wrlock(&locks[idx]);
+    pthread_rwlock_rdlock(&locks[idx]);
   }
 }
 
 void *process_files(void *arg)
 {
-  int n_hashes;
-  int *ordered_keys;
   thread_args_t *args = (thread_args_t *)arg;
-  DIR *dir = args->dir;
   char *directory_path = args->directory_path;
-  int lim_backups = args->lim_backups;
   pthread_mutex_t trinco = args->trinco;
+  int lim_backups = args->lim_backups;
+  DIR *dir = args->dir;
 
+  struct files files;
   while (1)
   {
     pthread_mutex_lock(&trinco);
-    struct files files = get_next_file(dir, directory_path);
+    files = get_next_file(dir, directory_path);
     pthread_mutex_unlock(&trinco);
     files.num_backups = 0;
-    if (files.fd_in < 0)
+    if (files.fd_in < 0 || files.fd_out < 0)
     {
       break;
     }
@@ -390,71 +379,71 @@ void *process_files(void *arg)
       char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
       unsigned int delay;
       size_t num_pairs;
-
+      int num_hashes;
+      int *hashes_list;
       int command = get_next(files.fd_in);
       switch (command)
       {
 
       case CMD_WRITE:
-        lock_all();
         num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
+        // LOCK WRITE KEYS
+        hashes_list = lock_write_positions(keys, num_pairs, &num_hashes);
 
-        // ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        //  lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
         if (kvs_write(num_pairs, keys, values))
         {
           write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
-        // lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
-        // free(ordered_keys);
-        unlock_all();
+
+        // UNLOCK
+        unlock_positions(hashes_list, num_hashes);
         break;
 
       case CMD_READ:
-        lock_all();
         num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-        // ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        // lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
+        // LOCK READ KEYS
+        hashes_list = lock_read_positions(keys, num_pairs, &num_hashes);
+
         if (kvs_read(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
-        // lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
-        // free(ordered_keys);
-        unlock_all();
+
+        // UNLOCK
+        unlock_positions(hashes_list, num_hashes);
         break;
 
       case CMD_DELETE:
-        // lock_all();
         num_pairs = parse_read_delete(files.fd_in, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
         if (num_pairs == 0)
         {
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
+        // LOCK WRITE KEYS
+        hashes_list = lock_write_positions(keys, num_pairs, &num_hashes);
+
         if (kvs_delete(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
-        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
-        free(ordered_keys);
-        // unlock_all();
+
+        // UNLOCK
+        unlock_positions(hashes_list, num_hashes);
         break;
 
       case CMD_SHOW:
-        lock_all();
+        read_lock_all();
         kvs_show(files.fd_out);
         unlock_all();
         break;

@@ -6,7 +6,19 @@
 #include <dirent.h>
 #include "files.h"
 
-int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs);
+int *get_hashes(char keys[][MAX_STRING_SIZE], int num_keys, int *num_hashes);
+
+void bubbleSort(int list[], int n_hashes);
+
+int *lock_write_positions(char keys[][MAX_STRING_SIZE], int num_keys, int *num_hashes);
+
+int *lock_read_positions(char keys[][MAX_STRING_SIZE], int num_keys, int *num_hashes);
+
+void unlock_positions(int hashes_list[], int num_hashes);
+
+void unlock_all();
+
+void read_lock_all();
 
 void *process_files(void *arg);
 
