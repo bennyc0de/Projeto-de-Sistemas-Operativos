@@ -12,6 +12,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+LOCKING = 1;
+READING = 1;
+UNLOCKING = 0;
+WRITING = 0;
+
 static struct HashTable *kvs_table = NULL;
 pthread_rwlock_t locks[TABLE_SIZE];
 
@@ -173,7 +178,6 @@ int kvs_delete(int fd_out, size_t num_pairs, char keys[][MAX_STRING_SIZE])
 
 void kvs_show(int fd_out)
 {
-
   size_t len_key, len_value;
   for (int i = 0; i < TABLE_SIZE; i++)
   {
@@ -344,7 +348,8 @@ int *hash_and_order(char keys[][MAX_STRING_SIZE], size_t num_pairs, int *element
 
 void *process_files(void *arg)
 {
-  // int temp;
+  int n_hashes;
+  int *ordered_keys;
   thread_args_t *args = (thread_args_t *)arg;
   DIR *dir = args->dir;
   char *directory_path = args->directory_path;
@@ -370,8 +375,7 @@ void *process_files(void *arg)
       unsigned int delay;
       size_t num_pairs;
 
-      int command = get_next(files.fd_in);
-      switch (command)
+      switch (get_next(files.fd_in))
       {
       case CMD_WRITE:
         num_pairs = parse_write(files.fd_in, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
@@ -380,14 +384,14 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-        int n_hashes;
-        int *ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
-        lock_unlock(ordered_keys, 1, 0, n_hashes);
+
+        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
+        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
         if (kvs_write(num_pairs, keys, values))
         {
           write(STDERR_FILENO, "Failed to write pair\n", 21);
         }
-        lock_unlock(ordered_keys, 0, 0, n_hashes);
+        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
         break;
 
       case CMD_READ:
@@ -397,11 +401,13 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-
+        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
+        lock_unlock(ordered_keys, LOCKING, READING, n_hashes);
         if (kvs_read(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to read pair\n", 20);
         }
+        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
         break;
 
       case CMD_DELETE:
@@ -411,15 +417,25 @@ void *process_files(void *arg)
           write(STDERR_FILENO, "Invalid command. See HELP for usage\n", 36);
           continue;
         }
-
+        ordered_keys = hash_and_order(keys, num_pairs, &n_hashes);
+        lock_unlock(ordered_keys, LOCKING, WRITING, n_hashes);
         if (kvs_delete(files.fd_out, num_pairs, keys))
         {
           write(STDERR_FILENO, "Failed to delete pair\n", 22);
         }
+        lock_unlock(ordered_keys, UNLOCKING, 0, n_hashes);
         break;
 
       case CMD_SHOW:
+        for (int idx = 0; idx < TABLE_SIZE; idx++)
+        {
+          pthread_rwlock_rdlock(&locks[idx]);
+        }
         kvs_show(files.fd_out);
+        for (int idx = 0; idx < TABLE_SIZE; idx++)
+        {
+          pthread_rwlock_unlock(&locks[idx]);
+        }
         break;
 
       case CMD_WAIT:
