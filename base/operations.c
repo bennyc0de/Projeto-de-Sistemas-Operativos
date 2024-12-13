@@ -172,14 +172,14 @@ void kvs_show(int fd_out)
   }
 }
 
-int kvs_backup(struct files f, int lim_backups)
+int kvs_backup(struct files f, int *lim_backups, pthread_mutex_t backup_lock)
 {
   size_t len = strlen(f.input_path);
   strcpy(f.backup_path, f.input_path);
   snprintf(f.backup_path, MAX_JOB_FILE_NAME_SIZE, "%.*s-%d.bck", (int)(len - 4),
            f.input_path, f.num_backups);
 
-  if (lim_backups == 0)
+  if (*lim_backups == 0)
   {
     int status;
     pid_t pid = wait(&status);
@@ -202,6 +202,9 @@ int kvs_backup(struct files f, int lim_backups)
       }
     }
   }
+  pthread_mutex_lock(&backup_lock);
+  (*lim_backups)--;
+  pthread_mutex_unlock(&backup_lock);
   pid_t pid = fork();
   if (pid < 0)
   {
@@ -233,9 +236,8 @@ void kvs_wait(unsigned int delay_ms)
 struct files get_next_file(DIR *dir, char *directory_path)
 {
   struct files files;
-
   struct dirent *entry;
-  strcat(directory_path, "/");
+
   while ((entry = readdir(dir)) != NULL)
   {
     size_t name_len = strlen(entry->d_name);
@@ -356,16 +358,18 @@ void *process_files(void *arg)
 {
   thread_args_t *args = (thread_args_t *)arg;
   char *directory_path = args->directory_path;
-  pthread_mutex_t trinco = args->trinco;
+  pthread_mutex_t file_lock = args->file_lock;
+  pthread_mutex_t backup_lock = args->backup_lock;
   int lim_backups = args->lim_backups;
   DIR *dir = args->dir;
 
   struct files files;
   while (1)
   {
-    pthread_mutex_lock(&trinco);
+    write(STDERR_FILENO, "waiting file_lock\n", 18);
+    pthread_mutex_lock(&file_lock);
     files = get_next_file(dir, directory_path);
-    pthread_mutex_unlock(&trinco);
+    pthread_mutex_unlock(&file_lock);
     files.num_backups = 0;
     if (files.fd_in < 0 || files.fd_out < 0)
     {
@@ -393,6 +397,7 @@ void *process_files(void *arg)
           continue;
         }
         // LOCK WRITE KEYS
+        write(STDERR_FILENO, "waiting writ_lock\n", 18);
         hashes_list = lock_write_positions(keys, num_pairs, &num_hashes);
 
         if (kvs_write(num_pairs, keys, values))
@@ -412,6 +417,7 @@ void *process_files(void *arg)
           continue;
         }
         // LOCK READ KEYS
+        write(STDERR_FILENO, "waiting read_lock\n", 18);
         hashes_list = lock_read_positions(keys, num_pairs, &num_hashes);
 
         if (kvs_read(files.fd_out, num_pairs, keys))
@@ -431,6 +437,7 @@ void *process_files(void *arg)
           continue;
         }
         // LOCK WRITE KEYS
+        write(STDERR_FILENO, "waiting writ_lock\n", 18);
         hashes_list = lock_write_positions(keys, num_pairs, &num_hashes);
 
         if (kvs_delete(files.fd_out, num_pairs, keys))
@@ -464,7 +471,7 @@ void *process_files(void *arg)
 
       case CMD_BACKUP:
         files.num_backups++;
-        if (kvs_backup(files, lim_backups) == 1)
+        if (kvs_backup(files, &lim_backups, backup_lock) == 1)
         {
           write(STDERR_FILENO, "Failed to perform backup.\n", 26);
           files.num_backups--;

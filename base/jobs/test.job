@@ -1,12 +1,3 @@
 READ [c1]
 WRITE [(d1,v1)(chave2,valor-exemplo)]
-SHOW
-READ [chave2]
-WRITE [(chave2,valor-exemplo2)(umaChave,umValor)]
-BACKUP
-DELETE [d1,chaveAleatoria]
-WAIT 1000
-SHOW
-BACKUP
-HELP
-SHOW
+

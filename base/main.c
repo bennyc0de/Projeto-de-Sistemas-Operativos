@@ -43,21 +43,27 @@ int main(int argc, char *argv[])
   int max_threads = atoi(argv[3]);
   int lim_backups = atoi(argv[2]);
 
-  pthread_mutex_t trinco;
-  pthread_mutex_init(&trinco, NULL);
+  pthread_mutex_t file_lock;
+  pthread_mutex_t backup_lock;
+  pthread_mutex_init(&file_lock, NULL);
+  pthread_mutex_init(&backup_lock, NULL);
   pthread_t tid[max_threads];
   thread_args_t args = {
-        .dir = dir,
-        .lim_backups = lim_backups,
-        .max_threads = max_threads,
-        .trinco = trinco
-  };
+      .dir = dir,
+      .lim_backups = lim_backups,
+      .max_threads = max_threads,
+      .file_lock = file_lock,
+      .backup_lock = backup_lock};
   strncpy(args.directory_path, argv[1], MAX_JOB_FILE_NAME_SIZE);
-  for (int i = 0; i < max_threads; i++) {
+  strcat(args.directory_path, "/");
+
+  for (int i = 0; i < max_threads; i++)
+  {
     pthread_create(&tid[i], NULL, process_files, (void *)&args);
   }
 
-  for (int i = 0; i < max_threads; i++) {
+  for (int i = 0; i < max_threads; i++)
+  {
     pthread_join(tid[i], NULL);
   }
 
